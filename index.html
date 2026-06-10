@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduAI Groq</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-bg"></div>
+
+  <main class="container">
+    <header class="hero">
+      <div>
+        <h1>EduAI</h1>
+        <p>Transforme temas e arquivos em materiais de estudo completos com IA.</p>
+      </div>
+      <button id="openHistory" class="ghost-btn">📚 Histórico</button>
+    </header>
+
+    <section class="setup-card">
+      <h2>Configuração da Groq</h2>
+      <p>Informe sua chave da Groq para gerar conteúdo. Ela fica salva apenas no seu navegador.</p>
+      <div class="api-row">
+        <input id="apiKey" type="password" placeholder="Cole sua GROQ_API_KEY" />
+        <button id="saveKey">Salvar</button>
+      </div>
+    </section>
+
+    <nav class="tabs main-tabs">
+      <button class="tab active" data-main-tab="input">📖 Entrada</button>
+      <button class="tab" data-main-tab="results">📄 Resultados</button>
+    </nav>
+
+    <section id="inputView" class="view active">
+      <div class="grid">
+        <article class="glass-card">
+          <h2>Tema Manual</h2>
+          <p>Insira um tema e deixe a IA montar seu material.</p>
+          <label>Tema</label>
+          <input id="topicInput" type="text" placeholder="Ex: Revolução Francesa, Fotossíntese, Python" />
+          <label>Nível de dificuldade</label>
+          <select id="topicLevel">
+            <option>Iniciante</option>
+            <option>Intermediário</option>
+            <option>Avançado</option>
+          </select>
+          <button id="generateTopic" class="primary-btn">Gerar Conteúdo</button>
+        </article>
+
+        <article class="glass-card">
+          <h2>Upload de Arquivo</h2>
+          <p>Envie PDF, DOCX ou TXT para análise.</p>
+          <label class="drop-zone" for="fileInput">
+            <span class="upload-icon">⇧</span>
+            <strong>Clique para escolher um arquivo</strong>
+            <small>PDF, DOCX ou TXT até 10MB</small>
+          </label>
+          <input id="fileInput" type="file" accept=".txt,.pdf,.docx" hidden />
+          <p id="fileName" class="file-name"></p>
+          <label>Nível de dificuldade</label>
+          <select id="fileLevel">
+            <option>Iniciante</option>
+            <option>Intermediário</option>
+            <option>Avançado</option>
+          </select>
+          <button id="processFile" class="primary-btn">Processar Arquivo</button>
+        </article>
+      </div>
+    </section>
+
+    <section id="resultsView" class="view">
+      <article class="result-card empty" id="emptyResult">
+        <h2>Nenhum resultado ainda</h2>
+        <p>Gere um conteúdo por tema ou arquivo para começar.</p>
+      </article>
+
+      <article class="result-card hidden" id="resultBox">
+        <div class="result-header">
+          <div>
+            <h2 id="resultTitle">Resultado</h2>
+            <p id="resultMeta"></p>
+          </div>
+          <div class="actions">
+            <button id="copyResult">Copiar</button>
+            <button id="downloadTxt">Baixar TXT</button>
+          </div>
+        </div>
+
+        <nav class="tabs content-tabs">
+          <button class="tab active" data-section="visaoGeral">Visão geral</button>
+          <button class="tab" data-section="resumo">Resumo</button>
+          <button class="tab" data-section="explicacao">Explicação</button>
+          <button class="tab" data-section="quiz">Quiz</button>
+          <button class="tab" data-section="flashcards">Flashcards</button>
+          <button class="tab" data-section="plano">Plano</button>
+          <button class="tab" data-section="revisao">Revisão</button>
+        </nav>
+
+        <div id="resultContent" class="study-content"></div>
+      </article>
+    </section>
+
+    <section id="historyView" class="history-panel hidden">
+      <div class="history-head">
+        <button id="closeHistory" class="ghost-btn">← Voltar</button>
+        <h2>Histórico de Estudos</h2>
+      </div>
+      <div id="historyList" class="history-list"></div>
+    </section>
+  </main>
+
+  <div id="loader" class="loader hidden">
+    <div class="loader-box">
+      <div class="spinner"></div>
+      <h3>Gerando material educativo...</h3>
+      <p id="loaderText">Analisando conteúdo...</p>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
