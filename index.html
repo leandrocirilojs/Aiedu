@@ -25,6 +25,11 @@
         <input id="apiKey" type="password" placeholder="Cole sua GROQ_API_KEY" />
         <button id="saveKey">Salvar</button>
       </div>
+      <label for="modelSelect">Modelo</label>
+      <select id="modelSelect">
+        <option value="llama-3.3-70b-versatile">Llama 3.3 70B — melhor qualidade</option>
+        <option value="llama-3.1-8b-instant">Llama 3.1 8B — mais rápido</option>
+      </select>
     </section>
 
     <nav class="tabs main-tabs">
@@ -37,9 +42,9 @@
         <article class="glass-card">
           <h2>Tema Manual</h2>
           <p>Insira um tema e deixe a IA montar seu material.</p>
-          <label>Tema</label>
+          <label for="topicInput">Tema</label>
           <input id="topicInput" type="text" placeholder="Ex: Revolução Francesa, Fotossíntese, Python" />
-          <label>Nível de dificuldade</label>
+          <label for="topicLevel">Nível de dificuldade</label>
           <select id="topicLevel">
             <option>Iniciante</option>
             <option>Intermediário</option>
@@ -50,15 +55,15 @@
 
         <article class="glass-card">
           <h2>Upload de Arquivo</h2>
-          <p>Envie PDF, DOCX ou TXT para análise.</p>
-          <label class="drop-zone" for="fileInput">
+          <p>Envie PDF, DOCX ou TXT para análise. Arquivos longos são resumidos por partes automaticamente.</p>
+          <label class="drop-zone" for="fileInput" id="dropZone">
             <span class="upload-icon">⇧</span>
-            <strong>Clique para escolher um arquivo</strong>
+            <strong>Clique ou arraste um arquivo aqui</strong>
             <small>PDF, DOCX ou TXT até 10MB</small>
           </label>
           <input id="fileInput" type="file" accept=".txt,.pdf,.docx" hidden />
           <p id="fileName" class="file-name"></p>
-          <label>Nível de dificuldade</label>
+          <label for="fileLevel">Nível de dificuldade</label>
           <select id="fileLevel">
             <option>Iniciante</option>
             <option>Intermediário</option>
@@ -84,6 +89,8 @@
           <div class="actions">
             <button id="copyResult">Copiar</button>
             <button id="downloadTxt">Baixar TXT</button>
+            <button id="downloadPdf">Baixar PDF</button>
+            <button id="downloadAnki">Flashcards CSV (Anki)</button>
           </div>
         </div>
 
@@ -105,6 +112,7 @@
       <div class="history-head">
         <button id="closeHistory" class="ghost-btn">← Voltar</button>
         <h2>Histórico de Estudos</h2>
+        <button id="clearHistory" class="ghost-btn">🗑 Limpar tudo</button>
       </div>
       <div id="historyList" class="history-list"></div>
     </section>
@@ -115,11 +123,15 @@
       <div class="spinner"></div>
       <h3>Gerando material educativo...</h3>
       <p id="loaderText">Analisando conteúdo...</p>
+      <button id="cancelGen" class="ghost-btn">Cancelar</button>
     </div>
   </div>
 
+  <div id="toasts" class="toasts"></div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
