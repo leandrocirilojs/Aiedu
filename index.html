@@ -15,26 +15,16 @@
         <h1>EduAI</h1>
         <p>Transforme temas e arquivos em materiais de estudo completos com IA.</p>
       </div>
-      <button id="openHistory" class="ghost-btn">📚 Histórico</button>
-    </header>
-
-    <section class="setup-card">
-      <h2>Configuração da Groq</h2>
-      <p>Informe sua chave da Groq para gerar conteúdo. Ela fica salva apenas no seu navegador.</p>
-      <div class="api-row">
-        <input id="apiKey" type="password" placeholder="Cole sua GROQ_API_KEY" />
-        <button id="saveKey">Salvar</button>
+      <div class="hero-actions">
+        <button id="openHistory" class="ghost-btn">📚 Histórico</button>
+        <button id="openSettings" class="icon-btn" title="Configurações" aria-label="Configurações">⚙️</button>
       </div>
-      <label for="modelSelect">Modelo</label>
-      <select id="modelSelect">
-        <option value="llama-3.3-70b-versatile">Llama 3.3 70B — melhor qualidade</option>
-        <option value="llama-3.1-8b-instant">Llama 3.1 8B — mais rápido</option>
-      </select>
-    </section>
+    </header>
 
     <nav class="tabs main-tabs">
       <button class="tab active" data-main-tab="input">📖 Entrada</button>
       <button class="tab" data-main-tab="results">📄 Resultados</button>
+      <button class="tab" data-main-tab="dashboard">📊 Painel</button>
     </nav>
 
     <section id="inputView" class="view active">
@@ -108,6 +98,10 @@
       </article>
     </section>
 
+    <section id="dashboardView" class="view">
+      <div id="dashboardContent"></div>
+    </section>
+
     <section id="historyView" class="history-panel hidden">
       <div class="history-head">
         <button id="closeHistory" class="ghost-btn">← Voltar</button>
@@ -117,6 +111,63 @@
       <div id="historyList" class="history-list"></div>
     </section>
   </main>
+
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>⚙️ Configurações</h2>
+        <button id="closeSettings" class="icon-btn" aria-label="Fechar">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <h3 class="set-group">Conexão</h3>
+        <label for="apiKey">Chave da Groq</label>
+        <p class="set-hint">Fica salva apenas no seu navegador.</p>
+        <div class="api-row">
+          <input id="apiKey" type="password" placeholder="Cole sua GROQ_API_KEY" />
+        </div>
+
+        <label for="modelSelect">Modelo</label>
+        <select id="modelSelect">
+          <option value="llama-3.3-70b-versatile">Llama 3.3 70B — melhor qualidade</option>
+          <option value="llama-3.1-8b-instant">Llama 3.1 8B — mais rápido</option>
+        </select>
+
+        <h3 class="set-group">Como a IA gera o material</h3>
+
+        <label for="setPersona">Instruções da IA (persona)</label>
+        <p class="set-hint">Define o tom e a especialidade do gerador.</p>
+        <textarea id="setPersona" rows="3"></textarea>
+
+        <label for="setLanguage">Idioma da resposta</label>
+        <input id="setLanguage" type="text" />
+
+        <div class="set-grid">
+          <div>
+            <label for="setQuizCount">Questões no quiz</label>
+            <input id="setQuizCount" type="number" min="1" max="20" />
+          </div>
+          <div>
+            <label for="setFlashCount">Flashcards</label>
+            <input id="setFlashCount" type="number" min="1" max="30" />
+          </div>
+        </div>
+
+        <label for="setTemp">Criatividade (temperatura): <span id="tempVal">0.5</span></label>
+        <p class="set-hint">Mais baixo = respostas mais objetivas. Mais alto = mais variadas.</p>
+        <input id="setTemp" type="range" min="0" max="1" step="0.1" class="slider" />
+
+        <label for="setExtra">Instruções adicionais (opcional)</label>
+        <p class="set-hint">Ex: "Use exemplos do cotidiano", "Foque em provas de concurso".</p>
+        <textarea id="setExtra" rows="2" placeholder="Deixe em branco se não quiser adicionar nada."></textarea>
+      </div>
+
+      <div class="modal-foot">
+        <button id="resetSettings" class="ghost-btn">↺ Restaurar padrões</button>
+        <button id="saveSettings" class="primary-btn slim">Salvar configurações</button>
+      </div>
+    </div>
+  </div>
 
   <div id="loader" class="loader hidden">
     <div class="loader-box">
@@ -132,6 +183,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
