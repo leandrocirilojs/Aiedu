@@ -28,17 +28,18 @@ const sectionsMap = {
 /* ============ Inicialização ============ */
 window.addEventListener('DOMContentLoaded', () => {
   $('apiKey').value = localStorage.getItem('groq_api_key') || '';
-  $('modelSelect').value = localStorage.getItem('eduai_model') || 'llama-3.3-70b-versatile';
+  populateSettingsForm();
   bindEvents();
   renderHistory();
 });
 
 function bindEvents() {
-  $('saveKey').onclick = () => {
-    localStorage.setItem('groq_api_key', $('apiKey').value.trim());
-    toast('Chave salva no navegador.');
-  };
-  $('modelSelect').onchange = () => localStorage.setItem('eduai_model', $('modelSelect').value);
+  $('openSettings').onclick = openSettings;
+  $('closeSettings').onclick = closeSettings;
+  $('saveSettings').onclick = saveSettingsFromForm;
+  $('resetSettings').onclick = resetSettings;
+  $('setTemp').addEventListener('input', e => { $('tempVal').textContent = Number(e.target.value).toFixed(1); });
+  $('settingsModal').addEventListener('click', e => { if (e.target.id === 'settingsModal') closeSettings(); });
 
   document.querySelectorAll('[data-main-tab]').forEach(btn => btn.onclick = () => switchMainTab(btn.dataset.mainTab));
   document.querySelectorAll('[data-section]').forEach(btn => btn.onclick = () => showSection(btn.dataset.section));
@@ -84,6 +85,10 @@ function bindEvents() {
   });
 
   $('resultContent').addEventListener('click', onResultContentClick);
+
+  $('dashboardContent').addEventListener('click', e => {
+    if (e.target.closest('[data-dash="global-review"]')) startGlobalReview();
+  });
 }
 
 function setFile(file) {
@@ -95,7 +100,9 @@ function switchMainTab(tab) {
   document.querySelectorAll('[data-main-tab]').forEach(b => b.classList.toggle('active', b.dataset.mainTab === tab));
   $('inputView').classList.toggle('active', tab === 'input');
   $('resultsView').classList.toggle('active', tab === 'results');
+  $('dashboardView').classList.toggle('active', tab === 'dashboard');
   $('historyView').classList.add('hidden');
+  if (tab === 'dashboard') renderDashboard();
 }
 
 /* ============ Geração ============ */
@@ -175,8 +182,8 @@ async function generateContent(payload, loaderAlreadyOpen = false) {
   const apiKey = getApiKey();
   if (!apiKey) return;
   if (!loaderAlreadyOpen) showLoader();
+  else startLoaderRotation();
   try {
-    setLoaderText('Gerando material de estudo...');
     const raw = await callGroq(apiKey, [{ role: 'user', content: buildStudyPrompt(payload.content, payload.level) }], {
       json: true,
       maxTokens: 8000
@@ -204,8 +211,72 @@ async function generateContent(payload, loaderAlreadyOpen = false) {
   }
 }
 
+/* ============ Configurações editáveis (engrenagem) ============ */
+const DEFAULT_SETTINGS = {
+  model: 'llama-3.3-70b-versatile',
+  persona: 'Você é uma IA educacional especialista em transformar qualquer tema ou conteúdo em material de estudo completo.',
+  language: 'Português do Brasil',
+  quizCount: 6,
+  flashCount: 8,
+  temperature: 0.5,
+  extra: ''
+};
+
+function loadSettings() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem('eduai_settings') || '{}'); } catch (e) {}
+  return { ...DEFAULT_SETTINGS, ...s };
+}
+function saveSettingsObj(s) { localStorage.setItem('eduai_settings', JSON.stringify(s)); }
+
+function populateSettingsForm() {
+  const s = loadSettings();
+  $('modelSelect').value = s.model;
+  $('setPersona').value = s.persona;
+  $('setLanguage').value = s.language;
+  $('setQuizCount').value = s.quizCount;
+  $('setFlashCount').value = s.flashCount;
+  $('setTemp').value = s.temperature;
+  $('tempVal').textContent = Number(s.temperature).toFixed(1);
+  $('setExtra').value = s.extra || '';
+  $('apiKey').value = localStorage.getItem('groq_api_key') || '';
+}
+
+function openSettings() {
+  populateSettingsForm();
+  $('settingsModal').classList.remove('hidden');
+}
+function closeSettings() { $('settingsModal').classList.add('hidden'); }
+
+function saveSettingsFromForm() {
+  localStorage.setItem('groq_api_key', $('apiKey').value.trim());
+  const s = {
+    model: $('modelSelect').value,
+    persona: $('setPersona').value.trim() || DEFAULT_SETTINGS.persona,
+    language: $('setLanguage').value.trim() || DEFAULT_SETTINGS.language,
+    quizCount: Math.min(Math.max(parseInt($('setQuizCount').value) || 6, 1), 20),
+    flashCount: Math.min(Math.max(parseInt($('setFlashCount').value) || 8, 1), 30),
+    temperature: Math.min(Math.max(parseFloat($('setTemp').value) || 0.5, 0), 1),
+    extra: $('setExtra').value.trim()
+  };
+  saveSettingsObj(s);
+  populateSettingsForm();
+  closeSettings();
+  toast('Configurações salvas!');
+}
+
+function resetSettings() {
+  if (!confirm('Restaurar todas as configurações de geração para o padrão? (Sua chave da API não será apagada.)')) return;
+  saveSettingsObj({ ...DEFAULT_SETTINGS });
+  populateSettingsForm();
+  toast('Configurações restauradas ao padrão.');
+}
+
 function buildStudyPrompt(content, level) {
-  return `Você é uma IA educacional especialista em transformar qualquer tema ou conteúdo em material de estudo completo, em português do Brasil.
+  const s = loadSettings();
+  const n4 = Math.min(Math.max(parseInt(s.quizCount) || 6, 1), 20);
+  const nf = Math.min(Math.max(parseInt(s.flashCount) || 8, 1), 30);
+  return `${s.persona}
 
 Tema ou conteúdo base:
 ${content}
@@ -231,10 +302,11 @@ Responda APENAS com um objeto JSON válido (sem texto antes ou depois, sem cerca
 }
 
 Regras:
-- "quiz": exatamente 6 perguntas; "correta" é o índice (0 a 3) da alternativa certa; "explicacao" justifica a resposta.
-- "flashcards": exatamente 8 cartões com frente curta (pergunta/termo) e verso objetivo (resposta/definição).
+- "quiz": exatamente ${n4} perguntas; cada pergunta tem 4 alternativas; "correta" é o índice (0 a 3) da alternativa certa; "explicacao" justifica a resposta.
+- "flashcards": exatamente ${nf} cartões com frente curta (pergunta/termo) e verso objetivo (resposta/definição).
 - Nos textos em Markdown use apenas: ### subtítulos, **negrito**, listas com "-" e listas numeradas.
-- Linguagem clara, envolvente e adaptada ao nível "${level}".`;
+- Idioma da resposta: ${s.language}.
+- Linguagem clara, envolvente e adaptada ao nível "${level}".${s.extra && s.extra.trim() ? `\n\nInstruções adicionais do usuário:\n${s.extra.trim()}` : ''}`;
 }
 
 /* ============ Groq API ============ */
@@ -245,10 +317,11 @@ function getApiKey() {
 }
 
 async function callGroq(apiKey, messages, { json = false, maxTokens = 2000 } = {}) {
+  const s = loadSettings();
   const body = {
-    model: $('modelSelect').value || 'llama-3.3-70b-versatile',
+    model: s.model || 'llama-3.3-70b-versatile',
     messages,
-    temperature: 0.5,
+    temperature: typeof s.temperature === 'number' ? s.temperature : 0.5,
     max_tokens: maxTokens
   };
   if (json) body.response_format = { type: 'json_object' };
@@ -358,6 +431,10 @@ function renderQuiz() {
   });
 
   if (answered === quiz.length) {
+    if (!currentResult._quizRecorded) {
+      recordQuiz(currentResult, correct, quiz.length);
+      currentResult._quizRecorded = true;
+    }
     html += `<div class="quiz-final">
       <h3>Resultado: ${correct}/${quiz.length} (${Math.round((correct / quiz.length) * 100)}%)</h3>
       <div class="quiz-final-actions">
@@ -380,12 +457,14 @@ function onResultContentClick(e) {
   }
   const action = e.target.closest('[data-action]')?.dataset.action;
   if (action === 'more-questions') generateMoreQuestions();
-  if (action === 'reset-quiz') { currentResult._answers = {}; renderQuiz(); }
+  if (action === 'reset-quiz') { currentResult._answers = {}; currentResult._quizRecorded = false; renderQuiz(); }
   if (action === 'flip-card') e.target.closest('.fc-card').classList.toggle('flipped');
   if (action === 'start-review') startReview();
+  if (action === 'start-global-review') startGlobalReview();
   if (action === 'show-answer') { $('srsCard').classList.add('flipped'); $('srsGrades').classList.remove('hidden'); $('showAnswerBtn').classList.add('hidden'); }
   if (action === 'grade') gradeCard(e.target.closest('[data-grade]').dataset.grade);
-  if (action === 'exit-review') renderFlashcards();
+  if (action === 'exit-review') { if (reviewMode === 'global') switchMainTab('dashboard'); else renderFlashcards(); }
+  if (action === 'go-input') switchMainTab('input');
 }
 
 async function generateMoreQuestions() {
@@ -461,32 +540,61 @@ function renderFlashcards() {
   $('resultContent').innerHTML = html;
 }
 
-let reviewQueue = [];
-let reviewSrs = null;
+/* Fila genérica de revisão: cada item carrega de qual material veio,
+   permitindo revisão por material OU global (todos os materiais juntos). */
+let reviewQueue = [];   // [{ result, srs, cardIndex }]
+let reviewMode = 'single';
 
 function startReview() {
-  reviewSrs = loadSrs(currentResult);
-  reviewQueue = reviewSrs.filter(c => c.due <= todayStr()).map(c => c.i);
+  const srs = loadSrs(currentResult);
+  reviewQueue = srs
+    .filter(c => c.due <= todayStr())
+    .map(c => ({ result: currentResult, srs, cardIndex: c.i }));
+  reviewMode = 'single';
   if (!reviewQueue.length) return toast('Nenhum cartão para revisar hoje. Volte amanhã!');
   renderReviewCard();
 }
 
+function startGlobalReview() {
+  reviewQueue = [];
+  reviewMode = 'global';
+  getHistory().forEach(item => {
+    if (!item.data || !Array.isArray(item.data.flashcards) || !item.data.flashcards.length) return;
+    const srs = loadSrs(item);
+    srs.filter(c => c.due <= todayStr()).forEach(c => {
+      reviewQueue.push({ result: item, srs, cardIndex: c.i });
+    });
+  });
+  // embaralha para intercalar materiais
+  reviewQueue.sort(() => Math.random() - 0.5);
+  if (!reviewQueue.length) return toast('Nenhum cartão para revisar hoje em nenhum material. 🎉');
+  switchMainTab('results');
+  $('emptyResult').classList.add('hidden');
+  $('resultBox').classList.remove('hidden');
+  $('resultTitle').textContent = 'Revisão global';
+  $('resultMeta').textContent = 'Todos os materiais • cartões para hoje';
+  renderReviewCard();
+}
+
 function renderReviewCard() {
+  const box = $('resultContent');
   if (!reviewQueue.length) {
-    $('resultContent').innerHTML = `<div class="srs-done">
+    box.innerHTML = `<div class="srs-done">
       <h3>🎉 Revisão concluída!</h3>
       <p>Todos os cartões de hoje foram revisados. A repetição espaçada vai trazê-los de volta na hora certa.</p>
-      <button class="ghost-btn" data-action="exit-review">← Voltar aos flashcards</button>
+      <button class="ghost-btn" data-action="exit-review">${reviewMode === 'global' ? '← Voltar ao painel' : '← Voltar aos flashcards'}</button>
     </div>`;
     return;
   }
-  const idx = reviewQueue[0];
-  const card = currentResult.data.flashcards[idx];
-  $('resultContent').innerHTML = `
+  const { result, cardIndex } = reviewQueue[0];
+  const card = result.data.flashcards[cardIndex];
+  const origin = reviewMode === 'global' ? `<span class="srs-origin">${escapeHtml(result.title)}</span>` : '';
+  box.innerHTML = `
     <div class="srs-top">
       <button class="ghost-btn" data-action="exit-review">← Sair</button>
       <span>${reviewQueue.length} restante(s)</span>
     </div>
+    ${origin}
     <div class="fc-card srs-card" id="srsCard">
       <div class="fc-inner">
         <div class="fc-face fc-front"><small>FRENTE</small><p>${escapeHtml(card.frente)}</p></div>
@@ -502,14 +610,14 @@ function renderReviewCard() {
 }
 
 function gradeCard(grade) {
-  const idx = reviewQueue.shift();
-  const card = reviewSrs[idx];
+  const item = reviewQueue.shift();
+  const card = item.srs[item.cardIndex];
   if (grade === 'again') {
     card.interval = 0;
     card.ease = Math.max(1.3, card.ease - 0.2);
     card.due = todayStr();
     card.reps = 0;
-    reviewQueue.push(idx); // volta para o fim da fila de hoje
+    reviewQueue.push(item); // volta para o fim da fila de hoje
   } else if (grade === 'good') {
     card.interval = card.interval ? Math.round(card.interval * card.ease) : 1;
     card.due = addDays(card.interval);
@@ -520,7 +628,8 @@ function gradeCard(grade) {
     card.due = addDays(card.interval);
     card.reps++;
   }
-  saveSrs(currentResult, reviewSrs);
+  saveSrs(item.result, item.srs);
+  recordReview();
   renderReviewCard();
 }
 
@@ -717,17 +826,160 @@ function openHistory() {
 }
 function closeHistory() { $('historyView').classList.add('hidden'); switchMainTab('input'); }
 
+/* ============ Estatísticas de estudo ============ */
+function getStats() {
+  try {
+    return JSON.parse(localStorage.getItem('eduai_stats') || 'null') ||
+      { reviewsByDay: {}, quizzes: [], lastStudy: null, streak: 0 };
+  } catch (e) {
+    return { reviewsByDay: {}, quizzes: [], lastStudy: null, streak: 0 };
+  }
+}
+function saveStats(s) { localStorage.setItem('eduai_stats', JSON.stringify(s)); }
+
+function touchStreak(s) {
+  const today = todayStr();
+  if (s.lastStudy === today) return;
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const yest = y.toISOString().slice(0, 10);
+  s.streak = s.lastStudy === yest ? (s.streak || 0) + 1 : 1;
+  s.lastStudy = today;
+}
+
+function recordReview() {
+  const s = getStats();
+  const today = todayStr();
+  s.reviewsByDay[today] = (s.reviewsByDay[today] || 0) + 1;
+  touchStreak(s);
+  saveStats(s);
+}
+
+function recordQuiz(result, correct, total) {
+  const s = getStats();
+  s.quizzes.unshift({ title: result.title, correct, total, date: todayStr() });
+  s.quizzes = s.quizzes.slice(0, 50);
+  touchStreak(s);
+  saveStats(s);
+}
+
+/* ============ Painel (Dashboard) ============ */
+let dashChart = null;
+
+function countDueGlobal() {
+  let due = 0, total = 0;
+  getHistory().forEach(item => {
+    if (!item.data || !Array.isArray(item.data.flashcards) || !item.data.flashcards.length) return;
+    const srs = loadSrs(item);
+    total += srs.length;
+    due += srs.filter(c => c.due <= todayStr()).length;
+  });
+  return { due, total };
+}
+
+function renderDashboard() {
+  const s = getStats();
+  const { due, total } = countDueGlobal();
+  const materials = getHistory().length;
+  const reviewsToday = s.reviewsByDay[todayStr()] || 0;
+  const quizCount = s.quizzes.length;
+  const avgQuiz = quizCount
+    ? Math.round(s.quizzes.reduce((a, q) => a + (q.correct / q.total) * 100, 0) / quizCount)
+    : 0;
+
+  const box = $('dashboardContent');
+  box.innerHTML = `
+    <article class="result-card">
+      <div class="dash-stats">
+        <div class="stat"><span class="stat-num">🔥 ${s.streak || 0}</span><span class="stat-label">dias seguidos</span></div>
+        <div class="stat"><span class="stat-num">${due}</span><span class="stat-label">cartões para hoje</span></div>
+        <div class="stat"><span class="stat-num">${reviewsToday}</span><span class="stat-label">revisados hoje</span></div>
+        <div class="stat"><span class="stat-num">${materials}</span><span class="stat-label">materiais</span></div>
+        <div class="stat"><span class="stat-num">${total}</span><span class="stat-label">cartões no total</span></div>
+        <div class="stat"><span class="stat-num">${avgQuiz}%</span><span class="stat-label">média nos quizzes</span></div>
+      </div>
+      <button class="primary-btn" data-dash="global-review" ${due ? '' : 'disabled'}>
+        ${due ? `🧠 Revisar ${due} cartão(ões) de todos os materiais` : '✅ Tudo revisado por hoje'}
+      </button>
+    </article>
+
+    <article class="result-card">
+      <h3 class="dash-h3">Revisões nos últimos 14 dias</h3>
+      ${Object.keys(s.reviewsByDay).length ? '<canvas id="reviewChart" height="120"></canvas>' : '<p class="dash-empty">Revise alguns flashcards para ver seu progresso aqui.</p>'}
+    </article>
+
+    <article class="result-card">
+      <h3 class="dash-h3">Desempenho por material (quizzes)</h3>
+      ${quizCount ? renderQuizTable(s.quizzes) : '<p class="dash-empty">Complete um quiz para ver seu desempenho aqui.</p>'}
+    </article>`;
+
+  if (Object.keys(s.reviewsByDay).length) drawReviewChart(s.reviewsByDay);
+}
+
+function renderQuizTable(quizzes) {
+  // agrupa por material: melhor desempenho e nº de tentativas
+  const byTitle = {};
+  quizzes.forEach(q => {
+    const pct = Math.round((q.correct / q.total) * 100);
+    if (!byTitle[q.title]) byTitle[q.title] = { best: pct, attempts: 0, last: q.date };
+    byTitle[q.title].best = Math.max(byTitle[q.title].best, pct);
+    byTitle[q.title].attempts++;
+  });
+  const rows = Object.entries(byTitle).map(([title, d]) => {
+    const cls = d.best >= 70 ? 'good' : d.best >= 40 ? 'mid' : 'low';
+    return `<div class="quiz-row">
+      <span class="quiz-row-title">${escapeHtml(title)}</span>
+      <span class="quiz-row-bar"><span class="bar-fill ${cls}" style="width:${d.best}%"></span></span>
+      <span class="quiz-row-pct">${d.best}%</span>
+      <span class="quiz-row-att">${d.attempts}×</span>
+    </div>`;
+  }).join('');
+  return `<div class="quiz-table">
+    <div class="quiz-row head"><span>Material</span><span>Melhor resultado</span><span></span><span>Tentativas</span></div>
+    ${rows}
+  </div>`;
+}
+
+function drawReviewChart(reviewsByDay) {
+  const labels = [], values = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    labels.push(key.slice(8) + '/' + key.slice(5, 7));
+    values.push(reviewsByDay[key] || 0);
+  }
+  const ctx = document.getElementById('reviewChart');
+  if (!ctx) return;
+  if (dashChart) dashChart.destroy();
+  dashChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: '#16c4ff', borderRadius: 6 }] },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#cfd6ee', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#cfd6ee', precision: 0 }, grid: { color: 'rgba(255,255,255,.08)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
 /* ============ Loader + Toasts ============ */
-function setLoaderText(t) { $('loaderText').textContent = t; }
+function setLoaderText(t) {
+  clearInterval(loaderInterval); // mensagens manuais (ex: progresso de chunking) ficam fixas
+  $('loaderText').textContent = t;
+}
+
+function startLoaderRotation() {
+  const messages = ['Analisando conteúdo...', 'Identificando conceitos principais...', 'Criando resumo...', 'Gerando quiz...', 'Montando flashcards...', 'Organizando plano de estudo...'];
+  let i = 0;
+  setLoaderText(messages[0]);
+  loaderInterval = setInterval(() => { i = (i + 1) % messages.length; $('loaderText').textContent = messages[i]; }, 1800);
+}
 
 function showLoader() {
   abortController = new AbortController();
-  const messages = ['Analisando conteúdo...', 'Identificando conceitos principais...', 'Criando resumo...', 'Gerando quiz...', 'Montando flashcards...', 'Organizando plano de estudo...'];
-  let i = 0;
   $('loader').classList.remove('hidden');
-  setLoaderText(messages[0]);
-  clearInterval(loaderInterval);
-  loaderInterval = setInterval(() => { i = (i + 1) % messages.length; setLoaderText(messages[i]); }, 1800);
+  startLoaderRotation();
 }
 
 function hideLoader() {
