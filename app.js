@@ -213,7 +213,7 @@ async function generateContent(payload, loaderAlreadyOpen = false) {
 
 /* ============ Configurações editáveis (engrenagem) ============ */
 const DEFAULT_SETTINGS = {
-  model: 'llama-3.3-70b-versatile',
+  model: 'openai/gpt-oss-120b',
   persona: 'Você é uma IA educacional especialista em transformar qualquer tema ou conteúdo em material de estudo completo.',
   language: 'Português do Brasil',
   quizCount: 6,
@@ -319,7 +319,7 @@ function getApiKey() {
 async function callGroq(apiKey, messages, { json = false, maxTokens = 2000 } = {}) {
   const s = loadSettings();
   const body = {
-    model: s.model || 'llama-3.3-70b-versatile',
+    model: s.model || 'openai/gpt-oss-120b',
     messages,
     temperature: typeof s.temperature === 'number' ? s.temperature : 0.5,
     max_tokens: maxTokens
