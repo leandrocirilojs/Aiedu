@@ -186,7 +186,7 @@ async function generateContent(payload, loaderAlreadyOpen = false) {
   try {
     const raw = await callGroq(apiKey, [{ role: 'user', content: buildStudyPrompt(payload.content, payload.level) }], {
       json: true,
-      maxTokens: 8000
+      maxTokens: 6000
     });
     const data = parseJsonLoose(raw);
     if (!data || !data.visaoGeral) throw new Error('A IA retornou um formato inesperado. Tente novamente.');
