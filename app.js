@@ -178,18 +178,34 @@ async function prepareContent(text, apiKey) {
   return 'Resumo consolidado de um documento longo (gerado por partes):\n\n' + summaries.join('\n\n');
 }
 
+/*
+ * Geração dividida em duas chamadas menores para não estourar o limite de
+ * tokens por minuto (TPM) da Groq: uma para os textos em Markdown e outra
+ * para quiz + flashcards. Cada chamada individual (prompt + max_tokens)
+ * fica bem abaixo do teto de 8000 tokens do tier gratuito.
+ */
 async function generateContent(payload, loaderAlreadyOpen = false) {
   const apiKey = getApiKey();
   if (!apiKey) return;
   if (!loaderAlreadyOpen) showLoader();
   else startLoaderRotation();
   try {
-    const raw = await callGroq(apiKey, [{ role: 'user', content: buildStudyPrompt(payload.content, payload.level) }], {
+    setLoaderText('Gerando conteúdo explicativo...');
+    const rawText = await callGroq(apiKey, [{ role: 'user', content: buildTextPrompt(payload.content, payload.level) }], {
       json: true,
-      maxTokens: 6000
+      maxTokens: 3200
     });
-    const data = parseJsonLoose(raw);
-    if (!data || !data.visaoGeral) throw new Error('A IA retornou um formato inesperado. Tente novamente.');
+    const textData = parseJsonLoose(rawText);
+    if (!textData || !textData.visaoGeral) throw new Error('A IA retornou um formato inesperado. Tente novamente.');
+
+    setLoaderText('Gerando quiz e flashcards...');
+    const rawQuiz = await callGroq(apiKey, [{ role: 'user', content: buildQuizPrompt(payload.content, payload.level) }], {
+      json: true,
+      maxTokens: 3500
+    });
+    const quizData = parseJsonLoose(rawQuiz) || { quiz: [], flashcards: [] };
+
+    const data = { ...textData, ...quizData };
     normalizeData(data);
     currentResult = {
       id: Date.now(),
@@ -272,10 +288,9 @@ function resetSettings() {
   toast('Configurações restauradas ao padrão.');
 }
 
-function buildStudyPrompt(content, level) {
+/* Prompt 1: apenas os textos em Markdown (visão geral, resumo, explicação, etc.) */
+function buildTextPrompt(content, level) {
   const s = loadSettings();
-  const n4 = Math.min(Math.max(parseInt(s.quizCount) || 6, 1), 20);
-  const nf = Math.min(Math.max(parseInt(s.flashCount) || 8, 1), 30);
   return `${s.persona}
 
 Tema ou conteúdo base:
@@ -291,22 +306,42 @@ Responda APENAS com um objeto JSON válido (sem texto antes ou depois, sem cerca
   "explicacao": "texto em Markdown (explicação detalhada)",
   "exemplos": "texto em Markdown (exemplos práticos)",
   "mapaMental": "texto em Markdown (mapa mental textual com hierarquia em listas)",
-  "quiz": [
-    { "pergunta": "...", "alternativas": ["...", "...", "...", "..."], "correta": 0, "explicacao": "..." }
-  ],
-  "flashcards": [
-    { "frente": "...", "verso": "..." }
-  ],
   "plano": "texto em Markdown (plano de estudo passo a passo)",
   "revisao": "texto em Markdown (revisão final com os pontos-chave)"
 }
 
 Regras:
-- "quiz": exatamente ${n4} perguntas; cada pergunta tem 4 alternativas; "correta" é o índice (0 a 3) da alternativa certa; "explicacao" justifica a resposta.
-- "flashcards": exatamente ${nf} cartões com frente curta (pergunta/termo) e verso objetivo (resposta/definição).
 - Nos textos em Markdown use apenas: ### subtítulos, **negrito**, listas com "-" e listas numeradas.
 - Idioma da resposta: ${s.language}.
 - Linguagem clara, envolvente e adaptada ao nível "${level}".${s.extra && s.extra.trim() ? `\n\nInstruções adicionais do usuário:\n${s.extra.trim()}` : ''}`;
+}
+
+/* Prompt 2: apenas quiz + flashcards */
+function buildQuizPrompt(content, level) {
+  const s = loadSettings();
+  const n4 = Math.min(Math.max(parseInt(s.quizCount) || 6, 1), 20);
+  const nf = Math.min(Math.max(parseInt(s.flashCount) || 8, 1), 30);
+  return `${s.persona}
+
+Tema ou conteúdo base:
+${content}
+
+Nível do aluno: ${level}
+
+Responda APENAS com um objeto JSON válido (sem texto antes ou depois, sem cercas de código), exatamente com estas chaves:
+{
+  "quiz": [
+    { "pergunta": "...", "alternativas": ["...", "...", "...", "..."], "correta": 0, "explicacao": "..." }
+  ],
+  "flashcards": [
+    { "frente": "...", "verso": "..." }
+  ]
+}
+
+Regras:
+- "quiz": exatamente ${n4} perguntas; cada pergunta tem 4 alternativas; "correta" é o índice (0 a 3) da alternativa certa; "explicacao" justifica a resposta.
+- "flashcards": exatamente ${nf} cartões com frente curta (pergunta/termo) e verso objetivo (resposta/definição).
+- Idioma da resposta: ${s.language}.${s.extra && s.extra.trim() ? `\n\nInstruções adicionais do usuário:\n${s.extra.trim()}` : ''}`;
 }
 
 /* ============ Groq API ============ */
